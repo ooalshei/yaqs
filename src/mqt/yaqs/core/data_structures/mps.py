@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Sequence
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from typing import TYPE_CHECKING, Any
 
@@ -353,7 +354,7 @@ class MPS:
             msg = f"{context}: orthogonality center at site {self._orthogonality_center}, expected site {expected}."
             raise ValueError(msg)
 
-    def check_covers_sites(self, sites: int | list[int]) -> bool:
+    def check_covers_sites(self, sites: int | Sequence[int]) -> bool:
         """Check whether the tracked center supports local contraction at ``sites``.
 
         Args:
@@ -371,6 +372,160 @@ class MPS:
             i, j = sites_list
             return j == i + 1 and self._orthogonality_center in {i, j}
         return False
+
+    def _sites_as_list(self, sites: int | Sequence[int]) -> list[int]:
+        """Normalize a site specification to a list of unique site indices."""
+        if isinstance(sites, int):
+            sites_list = [sites]
+        elif isinstance(sites, Sequence) and not isinstance(sites, (str, bytes)):
+            sites_list = list(sites)
+        else:
+            msg = f"Invalid site specification: {sites!r}."
+            raise ValueError(msg)
+        if len(sites_list) == 0:
+            msg = "Observable must act on at least one site."
+            raise ValueError(msg)
+        if len(set(sites_list)) != len(sites_list):
+            msg = f"Observable sites must be unique, got {sites_list!r}."
+            raise ValueError(msg)
+        for site in sites_list:
+            if site < 0 or site >= self.length:
+                msg = f"Observable acting on non-existing site: {site}"
+                raise ValueError(msg)
+        return sites_list
+
+    def _apply_matrix_to_dense_state(
+        self,
+        state_vector: NDArray[np.complex128],
+        matrix: NDArray[np.complex128],
+        sites: list[int],
+    ) -> NDArray[np.complex128]:
+        """Apply a local operator to a dense state vector on an arbitrary site set."""
+        state_tensor = np.asarray(state_vector, dtype=np.complex128).reshape(self.physical_dimensions)
+        target_dims = [self.physical_dimensions[site] for site in sites]
+        target_size = int(np.prod(target_dims, dtype=np.int64))
+        matrix = np.asarray(matrix, dtype=np.complex128)
+        if matrix.shape != (target_size, target_size):
+            msg = (
+                f"Observable matrix shape {matrix.shape} does not match the selected site dimensions "
+                f"{target_dims} (expected {(target_size, target_size)})."
+            )
+            raise ValueError(msg)
+
+        rest_sites = [site for site in range(self.length) if site not in sites]
+        permuted = np.transpose(state_tensor, sites + rest_sites)
+        rest_size = int(np.prod([self.physical_dimensions[site] for site in rest_sites], dtype=np.int64))
+        state_matrix = permuted.reshape(target_size, rest_size)
+        acted_matrix = matrix @ state_matrix
+        acted_tensor = acted_matrix.reshape(target_dims + [self.physical_dimensions[site] for site in rest_sites])
+
+        inverse_perm = np.argsort(sites + rest_sites)
+        return np.transpose(acted_tensor, inverse_perm).reshape(-1)
+
+    def _set_from_dense_state(self, state_vector: NDArray[np.complex128]) -> None:
+        """Rebuild the MPS tensors from a dense state vector."""
+        expected_size = int(np.prod(self.physical_dimensions, dtype=np.int64))
+        if state_vector.size != expected_size:
+            msg = f"State vector has size {state_vector.size}, expected {expected_size}."
+            raise ValueError(msg)
+
+        if self.length == 1:
+            tensor = np.asarray(state_vector, dtype=np.complex128).reshape(self.physical_dimensions[0], 1, 1)
+            self.tensors = [tensor]
+            self._orthogonality_center = 0
+            return
+
+        psi = np.asarray(state_vector, dtype=np.complex128).reshape(self.physical_dimensions)
+        tensors: list[NDArray[np.complex128]] = []
+        chi_left = 1
+        working = psi
+
+        for site in range(self.length - 1):
+            local_dim = self.physical_dimensions[site]
+            working = working.reshape(chi_left * local_dim, -1)
+            u_mat, s_vec, v_mat = linalg.svd(working, full_matrices=False)
+            chi_new = len(s_vec)
+            tensors.append(u_mat.reshape(chi_left, local_dim, chi_new).transpose(1, 0, 2))
+            working = (np.diag(s_vec) @ v_mat).astype(np.complex128, copy=False)
+            chi_left = chi_new
+
+        last_dim = self.physical_dimensions[-1]
+        tensors.append(working.reshape(chi_left, last_dim, 1).transpose(1, 0, 2))
+        self.tensors = tensors
+        self._orthogonality_center = self.length - 1
+
+    def _contract_nonadjacent_two_site_expectation_tensor_network(
+        self,
+        bra: MPS,
+        matrix: NDArray[np.complex128],
+        sites: list[int],
+    ) -> np.complex128:
+        """Contract ``<bra|O|ket>`` for a non-adjacent two-site observable without densifying."""
+        if len(sites) != 2:
+            msg = f"Expected exactly two sites, got {sites!r}."
+            raise ValueError(msg)
+        if self.length != bra.length:
+            msg = f"MPS length mismatch: ket has length {self.length}, bra has length {bra.length}."
+            raise ValueError(msg)
+        if self.physical_dimensions != bra.physical_dimensions:
+            msg = "Bra and ket physical dimensions must match for expectation evaluation."
+            raise ValueError(msg)
+
+        left_site, right_site = sites
+        if left_site == right_site:
+            msg = f"Observable sites must be distinct, got {sites!r}."
+            raise ValueError(msg)
+        if abs(left_site - right_site) == 1:
+            msg = f"Observable sites {sites!r} are adjacent; use the adjacent two-site fast path."
+            raise ValueError(msg)
+        if left_site > right_site:
+            left_site, right_site = right_site, left_site
+
+        target_dims = [self.physical_dimensions[site] for site in sites]
+        target_size = int(np.prod(target_dims, dtype=np.int64))
+        matrix = np.asarray(matrix, dtype=np.complex128)
+        if matrix.shape != (target_size, target_size):
+            msg = (
+                f"Observable matrix shape {matrix.shape} does not match the selected site dimensions "
+                f"{target_dims} (expected {(target_size, target_size)})."
+            )
+            raise ValueError(msg)
+
+        op_tensor = matrix.reshape(target_dims + target_dims)
+        if sites[0] != left_site:
+            op_tensor = np.transpose(op_tensor, (1, 0, 3, 2))
+
+        bra_tensors = [np.conj(tensor) for tensor in bra.tensors]
+        ket_tensors = self.tensors
+
+        left_env = np.array([[1.0 + 0.0j]], dtype=np.complex128)
+        for site in range(left_site):
+            left_env = oe.contract("ab,pac,pbd->cd", left_env, bra_tensors[site], ket_tensors[site])
+
+        middle = oe.contract(
+            "ab,pac,qbd,prqs->cdrs",
+            left_env,
+            bra_tensors[left_site],
+            ket_tensors[left_site],
+            op_tensor,
+        )
+
+        for site in range(left_site + 1, right_site):
+            middle = oe.contract("cdrs,pce,pdf->efrs", middle, bra_tensors[site], ket_tensors[site])
+
+        right_env = np.array([[1.0 + 0.0j]], dtype=np.complex128)
+        for site in range(self.length - 1, right_site, -1):
+            right_env = oe.contract("ab,pca,pdb->cd", right_env, bra_tensors[site], ket_tensors[site])
+
+        return np.complex128(
+            oe.contract(
+                "cdrs,rce,sdf,ef->",
+                middle,
+                bra_tensors[right_site],
+                ket_tensors[right_site],
+                right_env,
+            )
+        )
 
     def shift_center_to(self, target: int, decomposition: str = "QR") -> None:
         """Shift the orthogonality center to ``target`` via incremental moves.
@@ -979,60 +1134,42 @@ class MPS:
             Requires :meth:`check_covers_sites` to hold for ``sites``; prefer :meth:`expect` for
             gauge-safe evaluation.
         """
+        sites_list = self._sites_as_list(sites)
+        matrix = np.asarray(operator.gate.matrix, dtype=np.complex128)
+
+        if len(sites_list) == 2 and sites_list[1] != sites_list[0] + 1:
+            return self._contract_nonadjacent_two_site_expectation_tensor_network(self, matrix, sites_list)
+
+        if len(sites_list) != 1 and not (len(sites_list) == 2 and sites_list[1] == sites_list[0] + 1):
+            bra = self.to_vec()
+            ket = self._apply_matrix_to_dense_state(bra, matrix, sites_list)
+            return np.complex128(np.vdot(bra, ket))
+
         temp_state = copy.deepcopy(self)
-        if operator.gate.matrix.shape[0] == 2:  # Local observable
-            i = None
-            if isinstance(sites, list):
-                i = sites[0]
-            elif isinstance(sites, int):
-                i = sites
-
-            if isinstance(operator.sites, list):
-                assert operator.sites[0] == i, f"Operator sites mismatch {operator.sites[0]}, {i}"
-            elif isinstance(operator.sites, int):
-                assert operator.sites == i, f"Operator sites mismatch {operator.sites}, {i}"
-
-            assert i is not None, f"Invalid type for 'sites': expected int or list[int], got {type(sites).__name__}"
+        if len(sites_list) == 1:
+            i = sites_list[0]
             a = temp_state.tensors[i]
-            temp_state.tensors[i] = oe.contract("ab, bcd->acd", operator.gate.matrix, a)
+            temp_state.tensors[i] = oe.contract("ab, bcd->acd", matrix, a)
 
-        elif operator.gate.matrix.shape[0] == 4:  # Two-site correlator
-            assert isinstance(sites, list)
-            assert isinstance(operator.sites, list)
-            i, j = sites
-
-            assert operator.sites[0] == i, "Observable sites mismatch"
-            assert operator.sites[1] == j, "Observable sites mismatch"
-            assert operator.sites[0] < operator.sites[1], "Observable sites must be in ascending order."
-            assert operator.sites[1] - operator.sites[0] == 1, (
-                "Only nearest-neighbor observables are currently implemented."
-            )
+        else:
+            i, j = sites_list
             a = temp_state.tensors[i]
             b = temp_state.tensors[j]
             d_i, left, _ = a.shape
             d_j, _, right = b.shape
 
-            # 1) merge A,B into theta of shape (l, d_i*d_j, r)
-            theta = np.tensordot(a, b, axes=(2, 1))  # (d_i, l, d_j, r)
-            theta = theta.transpose(1, 0, 2, 3)  # (l, d_i, d_j, r)
-            theta = theta.reshape(left, d_i * d_j, right)  # (l, d_i*d_j, r)
+            theta = np.tensordot(a, b, axes=(2, 1)).transpose(1, 0, 2, 3)
+            theta = theta.reshape(left, d_i * d_j, right)
+            theta = oe.contract("ab, cbd->cad", matrix, theta)
+            theta = theta.reshape(left, d_i, d_j, right)
 
-            # 2) apply operator on the combined phys index
-            theta = oe.contract("ab, cbd->cad", operator.gate.matrix, theta)  # (l, d_i*d_j, r)
-            theta = theta.reshape(left, d_i, d_j, right)  # back to (l, d_i, d_j, r)
-
-            # 3) split via SVD
             theta_mat = theta.reshape(left * d_i, d_j * right)
             u_mat, s_vec, v_mat = linalg.svd(theta_mat, full_matrices=False)
-
-            chi_new = len(s_vec)  # keep all singular values
-
-            # build new A, B in (p, l, r) order
-            u_tensor = u_mat.reshape(left, d_i, chi_new)  # (l, d_i, r_new)
-            a_new = u_tensor.transpose(1, 0, 2)  # → (d_i, l, r_new)
-
-            v_tensor = (np.diag(s_vec) @ v_mat).reshape(chi_new, d_j, right)  # (l_new, d_j, r)
-            b_new = v_tensor.transpose(1, 0, 2)  # → (d_j, l_new, r)
+            chi_new = len(s_vec)
+            u_tensor = u_mat.reshape(left, d_i, chi_new)
+            a_new = u_tensor.transpose(1, 0, 2)
+            v_tensor = (np.diag(s_vec) @ v_mat).reshape(chi_new, d_j, right)
+            b_new = v_tensor.transpose(1, 0, 2)
 
             temp_state.tensors[i] = a_new
             temp_state.tensors[j] = b_new
@@ -1040,12 +1177,13 @@ class MPS:
         return self.scalar_product(temp_state, sites)
 
     def apply_local(self, observable: Observable) -> None:
-        r"""Apply a one- or two-site local observable to this MPS in-place.
+        r"""Apply a local observable to this MPS in-place.
 
-        Supports nearest-neighbor two-site gates and periodic-wrap gates on
-        ``(L-1, 0)``. For ``L == 2`` with wrap ordering ``[1, 0]``, the gate is
-        interpreted in ``|q_{L-1}, q_0>`` ordering and permuted to the merged
-        nearest-neighbor basis on ``(0, 1)``.
+        Supports arbitrary contiguous or non-contiguous site sets. Fast paths are
+        retained for one-site and nearest-neighbor two-site observables; all other
+        cases fall back to a dense apply-and-rebuild path. For expectation-only
+        evaluation of multi-site observables, use :meth:`expect` or
+        :meth:`mixed_expectation`, which contract directly without densifying.
 
         Args:
             observable: One-site (``2 x 2``) or two-site (``4 x 4``) observable.
@@ -1100,58 +1238,74 @@ class MPS:
             for i in reversed(range(state.length - 2)):
                 apply_two_site_nn_inplace(state, i, sw)
 
-        sites = [observable.sites] if isinstance(observable.sites, int) else observable.sites
+        sites = self._sites_as_list(observable.sites)
+        matrix = np.asarray(observable.gate.matrix, dtype=np.complex128)
+        target_dims = [self.physical_dimensions[site] for site in sites]
+        target_size = int(np.prod(target_dims, dtype=np.int64))
 
-        if observable.gate.matrix.shape[0] == 2:
+        if len(sites) == 1:
+            if matrix.shape != (target_size, target_size):
+                msg = f"Observable matrix shape {matrix.shape} does not match site dimension {target_size}."
+                raise ValueError(msg)
             site = sites[0]
-            self.tensors[site] = oe.contract("ab, bcd->acd", observable.gate.matrix, self.tensors[site])
+            self.tensors[site] = oe.contract("ab, bcd->acd", matrix, self.tensors[site])
             return
 
-        if observable.gate.matrix.shape[0] == 4:
+        if len(sites) == 2 and sites[1] == sites[0] + 1:
+            if matrix.shape != (target_size, target_size):
+                msg = (
+                    f"Observable matrix shape {matrix.shape} does not match the selected site dimensions "
+                    f"{target_dims} (expected {(target_size, target_size)})."
+                )
+                raise ValueError(msg)
             i, j = int(sites[0]), int(sites[1])
             length = self.length
 
             if length == 2:
                 if i == length - 1 and j == 0:
-                    mat = np.asarray(observable.gate.matrix, dtype=np.complex128)
-                    g_merged = permuted_periodic_wrap(mat)
+                    g_merged = permuted_periodic_wrap(matrix)
                     apply_two_site_nn_inplace(self, 0, g_merged)
                     return
                 i, j = min(i, j), max(i, j)
             elif (i == length - 1 and j == 0) or (i == 0 and j == length - 1):
-                mat = np.asarray(observable.gate.matrix, dtype=np.complex128)
                 bubble_swaps_forward(self)
-                g_merged = permuted_periodic_wrap(mat)
+                g_merged = permuted_periodic_wrap(matrix)
                 apply_two_site_nn_inplace(self, length - 2, g_merged)
                 bubble_swaps_backward(self)
                 return
 
-            if j != i + 1:
-                msg = "Only nearest-neighbor two-site observables are currently implemented."
-                raise ValueError(msg)
-
-            apply_two_site_nn_inplace(self, i, np.asarray(observable.gate.matrix, dtype=np.complex128))
+            apply_two_site_nn_inplace(self, i, matrix)
             return
 
-        msg = "Local observable must be one-site or nearest-neighbor two-site."
-        raise ValueError(msg)
+        dense_state = self.to_vec()
+        applied_state = self._apply_matrix_to_dense_state(dense_state, matrix, sites)
+        self._set_from_dense_state(applied_state)
 
     def mixed_expectation(self, bra: MPS, observable: Observable) -> np.complex128:
         r"""Compute the mixed matrix element :math:`\langle\mathrm{bra}|O|\mathrm{ket}\rangle`.
 
-        This applies ``observable`` to a deep copy of ``self`` (the ket) and contracts
-        with ``bra`` using :meth:`scalar_product`.
+        This applies ``observable`` to a deep copy of ``self`` (the ket), converts
+        both states to dense vectors for the generic fallback, and evaluates the
+        matrix element directly.
 
         Args:
             bra: Bra MPS (left vector).
-            observable: One-site or two-site local observable, same conventions as :meth:`apply_local`.
+            observable: One-site or multi-site local observable, same conventions as :meth:`apply_local`.
 
         Returns:
             The scalar contraction :math:`\langle\mathrm{bra}|O|\mathrm{ket}\rangle`.
         """
-        ket_with_op = copy.deepcopy(self)
-        ket_with_op.apply_local(observable)
-        return bra.scalar_product(ket_with_op)
+        sites = self._sites_as_list(observable.sites)
+        matrix = np.asarray(observable.gate.matrix, dtype=np.complex128)
+
+        if len(sites) == 2 and sites[1] != sites[0] + 1:
+            return self._contract_nonadjacent_two_site_expectation_tensor_network(bra, matrix, sites)
+
+        ket_vec = self.to_vec()
+        bra_vec = bra.to_vec()
+
+        ket_with_op = self._apply_matrix_to_dense_state(ket_vec, matrix, sites)
+        return np.complex128(np.vdot(bra_vec, ket_with_op))
 
     def evaluate_observables(
         self,
@@ -1176,17 +1330,17 @@ class MPS:
         temp_state = copy.deepcopy(self)
         for obs_index, observable in enumerate(sim_params.sorted_observables):
             if observable.gate.name in {"entropy", "schmidt_spectrum"}:
-                assert isinstance(observable.sites, list), "Given metric requires a list of sites"
-                assert len(observable.sites) == 2, "Given metric requires 2 sites to act on."
-                max_site = max(observable.sites)
-                min_site = min(observable.sites)
+                sites_list = temp_state._sites_as_list(observable.sites)
+                assert len(sites_list) == 2, "Given metric requires 2 sites to act on."
+                max_site = max(sites_list)
+                min_site = min(sites_list)
                 assert max_site - min_site == 1, "Entropy and Schmidt cuts must be nearest neighbor."
-                for s in observable.sites:
+                for s in sites_list:
                     assert s in range(self.length), f"Observable acting on non-existing site: {s}"
                 if observable.gate.name == "entropy":
-                    results[obs_index, column_index] = self.get_entropy(observable.sites)
+                    results[obs_index, column_index] = self.get_entropy(sites_list)
                 elif observable.gate.name == "schmidt_spectrum":
-                    results[obs_index, column_index] = self.get_schmidt_spectrum(observable.sites)
+                    results[obs_index, column_index] = self.get_schmidt_spectrum(sites_list)
 
             elif observable.gate.name == "pvm":
                 assert hasattr(observable.gate, "bitstring"), "Gate does not have attribute bitstring."
@@ -1195,19 +1349,11 @@ class MPS:
                 results[obs_index, column_index] = self.project_onto_bitstring(bitstring)
 
             else:
-                sites_list = [observable.sites] if isinstance(observable.sites, int) else list(observable.sites)
-                if temp_state.orthogonality_center is not None and not temp_state.check_covers_sites(sites_list):
-                    if len(sites_list) == 1:
-                        target = sites_list[0]
-                    else:
-                        i, j = sites_list
-                        center = temp_state.orthogonality_center
-                        target = i if abs(center - i) <= abs(center - j) else j
-                    temp_state.shift_center_to(target)
-                if temp_state.orthogonality_center is None:
-                    exp = temp_state.mixed_expectation(temp_state, observable)
-                else:
+                sites_list = temp_state._sites_as_list(observable.sites)
+                if temp_state.orthogonality_center is not None and temp_state.check_covers_sites(sites_list):
                     exp = temp_state.local_expect(observable, sites_list)
+                else:
+                    exp = temp_state.mixed_expectation(temp_state, observable)
                 assert exp.imag < 1e-13, f"Measurement should be real, '{exp.real:16f}+{exp.imag:16f}i'."
                 results[obs_index, column_index] = exp.real
 
@@ -1226,33 +1372,15 @@ class MPS:
             known but misaligned; falls back to full contraction when the gauge is
             unknown (``None``).
         """
-        sites_list = None
-        if isinstance(observable.sites, int):
-            sites_list = [observable.sites]
-        elif isinstance(observable.sites, list):
-            sites_list = observable.sites
-
-        assert sites_list is not None, f"Invalid type in expect {type(observable.sites).__name__}"
-
-        assert len(sites_list) < 3, "Only one- and two-site observables are currently implemented."
+        sites_list = self._sites_as_list(observable.sites)
 
         for s in sites_list:
             assert s in range(self.length), f"Observable acting on non-existing site: {s}"
 
-        if self._orthogonality_center is None:
-            exp = self.mixed_expectation(self, observable)
-        elif self.check_covers_sites(sites_list):
+        if self._orthogonality_center is not None and self.check_covers_sites(sites_list):
             exp = self.local_expect(observable, sites_list)
         else:
-            if len(sites_list) == 1:
-                target = sites_list[0]
-            else:
-                i, j = sites_list
-                center = self._orthogonality_center
-                target = i if abs(center - i) <= abs(center - j) else j
-            shifted = copy.deepcopy(self)
-            shifted.shift_center_to(target)
-            exp = shifted.local_expect(observable, sites_list)
+            exp = self.mixed_expectation(self, observable)
 
         assert exp.imag < 1e-13, f"Measurement should be real, '{exp.real:16f}+{exp.imag:16f}i'."
         return exp.real
