@@ -32,6 +32,7 @@ It is part of the [_Munich Quantum Toolkit (MQT)_](https://mqt.readthedocs.io).
 - **Equivalence checking**: Scalable comparison of quantum circuits [2].
 - **Process characterization**: Quantify non-Markovian memory in multi-time quantum processes, how much temporal history a process retains, with exact reference checks where needed ([guide](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/characterization.html)).
 - **Process tensor surrogates**: Train a causal Transformer surrogate for fast prediction of non-Markovian response to local interventions and measurement over time ([guide](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/characterization.html)).
+- **Noise model characterization**: Fit Markovian Lindblad jump rates from observable dynamics ([guide](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/noise_characterization.html)).
 - **Hardware-oriented modeling**: Realistic noise models including Gaussian and other strength distributions, plus hardware dynamics such as transmon–resonator systems, and heterogeneous site dimensions ([examples](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/realistic_noise_models.html)).
 - **Multiple backends**: Monte Carlo wavefunction and master equation evolution are available for analog simulation on smaller systems, alongside the scalable MPS trajectory path.
 
@@ -83,11 +84,16 @@ To support this endeavor, please consider:
 (.venv) $ pip install mqt.yaqs
 ```
 
+### Simulation
+
+[Analog simulation guide](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/analog_simulation.html)
+
 Noisy analog Hamiltonian simulation
+
 ```python
 from mqt.yaqs import AnalogSimParams, Hamiltonian, NoiseModel, Observable, Simulator, State
 
-sim = Simulator()
+sim = Simulator(show_progress=False)
 state = State(length=3, initial="zeros")
 H = Hamiltonian.ising(length=3, J=1.0, g=0.5)
 noise = NoiseModel([{"name": "lowering", "sites": [i], "strength": 0.05} for i in range(3)])
@@ -98,10 +104,13 @@ params = AnalogSimParams(
     preset="fast",
     num_traj=8,
 )
-print(sim.run(state, H, params, noise).expectation_values[0])
+print(sim.run(state, H, params, noise).expectation_values[0][-1])
 ```
 
+[Strong simulation guide](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/strong_simulation.html)
+
 Noisy digital circuit simulation
+
 ```python
 from qiskit.circuit import QuantumCircuit
 
@@ -113,17 +122,22 @@ circuit.cx(0, 1)
 circuit.cx(1, 2)
 noise = NoiseModel([{"name": "lowering", "sites": [i], "strength": 0.05} for i in range(3)])
 params = StrongSimParams(observables=[Observable("z", sites=0)], preset="fast", num_traj=8)
-result = Simulator().run(State(3, initial="zeros"), circuit, params, noise)
+result = Simulator(show_progress=False).run(State(3, initial="zeros"), circuit, params, noise)
 print(result.expectation_values[0])
 ```
 
+### Characterization
+
+[Environmental memory guide](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/characterization.html)
+
 Environmental memory characterization
+
 ```python
 from mqt.yaqs import AnalogSimParams, Hamiltonian, MemoryCharacterizer
 
 ham = Hamiltonian.ising(length=3, J=1.0, g=0.5)
 params = AnalogSimParams(dt=0.1)
-result = MemoryCharacterizer().characterize(
+result = MemoryCharacterizer(show_progress=False).characterize(
     ham,
     params,
     num_interventions=4,
@@ -134,7 +148,10 @@ result = MemoryCharacterizer().characterize(
 print(result.summary())
 ```
 
+[Noise characterization guide](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/noise_characterization.html)
+
 Noise model characterization
+
 ```python
 import numpy as np
 
@@ -147,7 +164,7 @@ observables = [Observable("z", sites=s) for s in range(n)]
 params = AnalogSimParams(observables=observables, elapsed_time=0.5, dt=0.1, sample_timesteps=True)
 reference = NoiseModel([{"name": "pauli_z", "sites": [s], "strength": 0.1} for s in range(n)])
 guess = NoiseModel([{"name": "pauli_z", "sites": [s], "strength": 0.3} for s in range(n)])
-result = NoiseCharacterizer().characterize(
+result = NoiseCharacterizer(show_progress=False).characterize(
     ham,
     params,
     init_state=state,
@@ -163,8 +180,7 @@ result = NoiseCharacterizer().characterize(
 print(result.optimal_model)
 ```
 
-
-**Documentation:** [Quickstart](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/quickstart.html) · [full guide](https://mqt.readthedocs.io/projects/yaqs)
+**Documentation:** [Quickstart](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/quickstart.html) · [Analog simulation](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/analog_simulation.html) · [Strong simulation](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/strong_simulation.html) · [Environmental memory](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/characterization.html) · [Noise characterization](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/noise_characterization.html) · [full guide](https://mqt.readthedocs.io/projects/yaqs)
 
 ## System Requirements
 
