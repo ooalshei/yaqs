@@ -83,18 +83,34 @@ To support this endeavor, please consider:
 (.venv) $ pip install mqt.yaqs
 ```
 
+Noisy analog simulation
 ```python
 from mqt.yaqs import AnalogSimParams, Hamiltonian, Observable, Simulator, State
 
 sim = Simulator()
-state = State(3, initial="zeros")
+state = State(length=3, initial="zeros")
 H = Hamiltonian.ising(length=3, J=1.0, g=0.5)
 params = AnalogSimParams(observables=[Observable("z", sites=0)], elapsed_time=0.5, dt=0.1, preset="fast")
 print(sim.run(state, H, params).expectation_values[0])
 ```
 
-Operational memory characterization:
+Noisy digital circuit simulation
+```python
+from qiskit.circuit import QuantumCircuit
 
+from mqt.yaqs import NoiseModel, Observable, Simulator, State, StrongSimParams
+
+circuit = QuantumCircuit(3)
+circuit.h(0)
+circuit.cx(0, 1)
+circuit.cx(1, 2)
+noise = NoiseModel([{"name": "lowering", "sites": [i], "strength": 0.05} for i in range(3)])
+params = StrongSimParams(observables=[Observable("z", sites=0)], preset="fast", num_traj=8)
+result = Simulator().run(State(3, initial="zeros"), circuit, params, noise)
+print(result.expectation_values[0])
+```
+
+Environmental memory characterization
 ```python
 from mqt.yaqs import AnalogSimParams, Hamiltonian, MemoryCharacterizer
 
@@ -111,7 +127,37 @@ result = MemoryCharacterizer().characterize(
 print(result.summary())
 ```
 
-**Documentation:** [Quickstart](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/quickstart.html) · [Characterization](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/characterization.html) · [full guide](https://mqt.readthedocs.io/projects/yaqs)
+Noise model characterization
+```python
+import numpy as np
+
+from mqt.yaqs import AnalogSimParams, Hamiltonian, NoiseCharacterizer, NoiseModel, Observable, State
+
+n = 2
+ham = Hamiltonian.ising(length=n, J=1.0, g=2.0)
+state = State(n, initial="zeros")
+observables = [Observable("z", sites=s) for s in range(n)]
+params = AnalogSimParams(observables=observables, elapsed_time=0.5, dt=0.1, sample_timesteps=True)
+reference = NoiseModel([{"name": "pauli_z", "sites": [s], "strength": 0.1} for s in range(n)])
+guess = NoiseModel([{"name": "pauli_z", "sites": [s], "strength": 0.3} for s in range(n)])
+result = NoiseCharacterizer().characterize(
+    ham,
+    params,
+    init_state=state,
+    init_guess=guess,
+    observables=observables,
+    reference_model=reference,
+    x_low=np.zeros(n),
+    x_up=np.full(n, 0.5),
+    max_iter=30,
+    popsize=6,
+    seed=0,
+)
+print(result.optimal_model)
+```
+
+
+**Documentation:** [Quickstart](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/quickstart.html) · [full guide](https://mqt.readthedocs.io/projects/yaqs)
 
 ## System Requirements
 
