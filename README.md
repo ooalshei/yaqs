@@ -84,6 +84,7 @@ To support this endeavor, please consider:
 ```
 
 Noisy analog Hamiltonian simulation
+
 ```python
 from mqt.yaqs import AnalogSimParams, Hamiltonian, NoiseModel, Observable, Simulator, State
 
@@ -102,6 +103,7 @@ print(sim.run(state, H, params, noise).expectation_values[0])
 ```
 
 Noisy digital circuit simulation
+
 ```python
 from qiskit.circuit import QuantumCircuit
 
@@ -118,6 +120,7 @@ print(result.expectation_values[0])
 ```
 
 Environmental memory characterization
+
 ```python
 from mqt.yaqs import AnalogSimParams, Hamiltonian, MemoryCharacterizer
 
@@ -135,6 +138,7 @@ print(result.summary())
 ```
 
 Noise model characterization
+
 ```python
 import numpy as np
 
@@ -162,7 +166,6 @@ result = NoiseCharacterizer().characterize(
 )
 print(result.optimal_model)
 ```
-
 
 **Documentation:** [Quickstart](https://mqt.readthedocs.io/projects/yaqs/en/latest/examples/quickstart.html) · [full guide](https://mqt.readthedocs.io/projects/yaqs)
 
