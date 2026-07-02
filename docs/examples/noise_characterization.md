@@ -16,7 +16,7 @@ mystnb:
 
 Build a **digital twin** of an open quantum system using **analytical optimization**: learn unknown Lindblad jump rates from observable time series via simulator forward modeling and CMA-ES, validate the fit on the measured traces, then deploy the learned model in {class}`~mqt.yaqs.Simulator` to predict **held-out** observables.
 
-The entry point is {class}`~mqt.yaqs.noise_characterizer.NoiseCharacterizer`.
+The entry point is {class}`~mqt.yaqs.NoiseCharacterizer`.
 
 ```{note}
 A machine-learning pipeline with the same I/O (reference trajectories in, fitted
