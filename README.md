@@ -168,24 +168,6 @@ Building (and running) is continuously tested under Linux, macOS, and Windows us
 
 Please cite the work that best fits your use case.
 
-### The Munich Quantum Toolkit (the project)
-
-When discussing the overall MQT project or its ecosystem, cite the MQT Handbook:
-
-```bibtex
-@inproceedings{mqt,
-  title        = {The {{MQT}} Handbook: {{A}} Summary of Design Automation Tools and Software for Quantum Computing},
-  shorttitle   = {{The MQT Handbook}},
-  author       = {Wille, Robert and Berent, Lucas and Forster, Tobias and Kunasaikaran, Jagatheesan and Mato, Kevin and Peham, Tom and Quetschlich, Nils and Rovara, Damian and Sander, Aaron and Schmid, Ludwig and Schoenberger, Daniel and Stade, Yannick and Burgholzer, Lukas},
-  year         = 2024,
-  booktitle    = {IEEE International Conference on Quantum Software (QSW)},
-  doi          = {10.1109/QSW62656.2024.00013},
-  eprint       = {2405.17543},
-  eprinttype   = {arxiv},
-  addendum     = {A live version of this document is available at \url{https://mqt.readthedocs.io}}
-}
-```
-
 ### Peer-Reviewed Research
 
 When citing the underlying methods and research, please reference the most relevant peer-reviewed publications from the list below:
@@ -209,6 +191,24 @@ _arXiv:2508.10096 (2025)._
 A. Sander, S. Cichy, M. Eigel, J. Eisert, M. Fröhlich, T. Peham, R. Wille.
 Computational regimes in matrix-product-state-based quantum trajectory simulations.
 _arXiv:2606.13779 (2026)._
+
+### The Munich Quantum Toolkit (the project)
+
+When discussing the overall MQT project or its ecosystem, cite the MQT Handbook:
+
+```bibtex
+@inproceedings{mqt,
+  title        = {The {{MQT}} Handbook: {{A}} Summary of Design Automation Tools and Software for Quantum Computing},
+  shorttitle   = {{The MQT Handbook}},
+  author       = {Wille, Robert and Berent, Lucas and Forster, Tobias and Kunasaikaran, Jagatheesan and Mato, Kevin and Peham, Tom and Quetschlich, Nils and Rovara, Damian and Sander, Aaron and Schmid, Ludwig and Schoenberger, Daniel and Stade, Yannick and Burgholzer, Lukas},
+  year         = 2024,
+  booktitle    = {IEEE International Conference on Quantum Software (QSW)},
+  doi          = {10.1109/QSW62656.2024.00013},
+  eprint       = {2405.17543},
+  eprinttype   = {arxiv},
+  addendum     = {A live version of this document is available at \url{https://mqt.readthedocs.io}}
+}
+```
 
 ---
 
