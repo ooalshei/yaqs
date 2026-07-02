@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+import cma
 import numpy as np
 from scipy.optimize import minimize_scalar
 
@@ -88,9 +89,6 @@ def cma_opt(
         Best parameter vector, best loss, per-evaluation loss history, and
         parameter history.
     """
-    # Lazy import: ``cma`` is an optional extra; keep this module importable without it.
-    import cma  # noqa: PLC0415
-
     x0 = np.asarray(x0, dtype=float)
     if x_low is None:
         x_low = -np.inf * np.ones_like(x0)

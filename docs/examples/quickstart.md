@@ -178,7 +178,7 @@ fig.tight_layout()
 
 ## 5. Fit a Markovian noise digital twin (analytical optimization)
 
-Learn Lindblad jump rates from observable trajectories with {class}`~mqt.yaqs.noise_characterizer.NoiseCharacterizer` using **analytical optimization** (simulator forward model + CMA-ES trajectory matching). Install the optional CMA-ES backend with `pip install mqt.yaqs[noise]`.
+Learn Lindblad jump rates from observable trajectories with {class}`~mqt.yaqs.noise_characterizer.NoiseCharacterizer` using **analytical optimization** (simulator forward model + CMA-ES trajectory matching).
 
 ```{code-cell} ipython3
 import warnings
