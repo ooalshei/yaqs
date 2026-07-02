@@ -83,7 +83,7 @@ To support this endeavor, please consider:
 (.venv) $ pip install mqt.yaqs
 ```
 
-Noisy analog simulation
+Noisy analog Hamiltonian simulation
 ```python
 from mqt.yaqs import AnalogSimParams, Hamiltonian, Observable, Simulator, State
 
