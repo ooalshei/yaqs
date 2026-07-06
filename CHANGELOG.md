@@ -9,6 +9,8 @@ This project adheres to [Semantic Versioning], with the exception that minor rel
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-06
+
 ### Added
 
 - added analytical noise characterization module and digital twin pipeline ([#288]) ([**@aleramos119**], [**@aaronleesander**])
@@ -138,7 +140,8 @@ _📚 Refer to the [GitHub Release Notes](https://github.com/munich-quantum-tool
 
 <!-- Version links -->
 
-[Unreleased]: https://github.com/munich-quantum-toolkit/yaqs/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/munich-quantum-toolkit/yaqs/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/munich-quantum-toolkit/yaqs/compare/v0.6.0
 [0.5.0]: https://github.com/munich-quantum-toolkit/yaqs/compare/v0.5.0
 [0.4.0]: https://github.com/munich-quantum-toolkit/yaqs/releases/tag/v0.4.0
 [0.3.3]: https://github.com/munich-quantum-toolkit/yaqs/releases/tag/v0.3.3
