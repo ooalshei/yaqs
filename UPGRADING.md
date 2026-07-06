@@ -4,6 +4,8 @@ This document describes breaking changes and how to upgrade. For a complete list
 
 ## [Unreleased]
 
+## [0.6.0]
+
 The unreleased API refresh replaces free functions and deep module paths with a small set of
 top-level types. The pieces fit together: construct physics objects and parameters, run through
 `Simulator`, read everything from `Result`.
@@ -54,7 +56,7 @@ params = AnalogSimParams(
     svd_threshold=1e-8,
 )
 
-sim = Simulator(show_progress=False)
+sim = Simulator()
 result = sim.run(psi, H, params, noise_model)
 print(result.expectation_values[0])
 print(result.max_bond)  # bond diagnostics; no longer an Observable

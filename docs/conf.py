@@ -52,7 +52,6 @@ extensions = [
     "myst_nb",
     "sphinx_copybutton",
     "sphinx_design",
-    "sphinx_reredirects",
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
@@ -61,13 +60,6 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinxext.opengraph",
 ]
-
-redirects = {
-    "examples/strong_circuit_simulation": "examples/circuit_simulation.html",
-    "examples/sample_observable_digital_tjm": "examples/circuit_simulation.html#mid-circuit-observables",
-    "examples/solver_comparison": "examples/representation_comparison.html",
-    "examples/fermi_hubbard_mpo": "examples/hamiltonians.html#fermi-hubbard-1d",
-}
 
 source_suffix = [".rst", ".md"]
 
@@ -202,7 +194,7 @@ latex_documents = [
         master_doc,
         "mqt_yaqs.tex",
         (
-            r"MQT YAQS\\{\large Scalable simulation for open systems,"
+            r"MQT YAQS\\{\large Scalable simulation and characterization for open systems,"
             r" noisy circuits, and realistic hardware}"
         ),
         r"Chair for Design Automation\\Technical University of Munich",

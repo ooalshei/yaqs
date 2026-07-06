@@ -16,7 +16,7 @@ mystnb:
 
 **Weak** digital simulation samples computational-basis **shots** after a noisy circuit evolution, mimicking hardware readout statistics. Use {class}`~mqt.yaqs.WeakSimParams` and read bitstring counts from {attr}`~mqt.yaqs.Result.counts`.
 
-For expectation-value simulation and mid-circuit observables, see {doc}`circuit_simulation`. For parameter presets and truncation settings, see {doc}`simulation_parameters`.
+For expectation-value simulation and mid-circuit observables, see {doc}`strong_simulation`. For parameter presets and truncation settings, see {doc}`simulation_parameters`.
 
 You can pass an OpenQASM file path or raw OpenQASM string to {meth}`~mqt.yaqs.Simulator.run` instead of building a {class}`qiskit.circuit.QuantumCircuit` in Python (OpenQASM 3 requires `pip install mqt-yaqs[qasm3]`).
 
@@ -25,9 +25,6 @@ You can pass an OpenQASM file path or raw OpenQASM string to {meth}`~mqt.yaqs.Si
 We use a shallow randomized ansatz—single-qubit $R_y$ rotations followed by a linear chain of $CZ$ gates—typical of variational benchmarks.
 
 ```{code-cell} ipython3
----
-tags: [remove-output]
----
 import numpy as np
 from qiskit.circuit import QuantumCircuit
 
@@ -61,9 +58,6 @@ Amplitude damping relaxes each qubit toward $\ket{0}$. During circuit execution 
 `WeakSimParams` requires an explicit `shots` count (not covered by accuracy presets). We run the **same** circuit twice: once without noise (ideal readout statistics) and once with on-site amplitude damping.
 
 ```{code-cell} ipython3
----
-tags: [remove-output]
----
 from mqt.yaqs import Simulator, WeakSimParams
 
 sim_params = WeakSimParams(shots=1024, max_bond_dim=16, svd_threshold=1e-6, random_seed=7)
@@ -124,5 +118,5 @@ plt.show()
 
 ## Related topics
 
-- {doc}`circuit_simulation` — strong simulation with final and mid-circuit observables
+- {doc}`strong_simulation` — strong simulation with final and mid-circuit observables
 - {doc}`custom_gates` — custom unitaries and gate translation

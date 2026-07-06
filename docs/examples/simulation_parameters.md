@@ -30,7 +30,7 @@ This page shows how to construct each class. For {class}`~mqt.yaqs.Simulator` ex
 | `"xx"`, `"yy"`, `"zz"`         | Two-qubit Pauli strings                                        | `Observable("zz", sites=[0, 1])`            |
 | `"entropy"`                    | Bipartite entanglement entropy across a cut                    | `Observable("entropy", sites=cut)`          |
 | `"schmidt_spectrum"`           | Schmidt spectrum across a cut                                  | `Observable("schmidt_spectrum", sites=cut)` |
-| bitstring / `"pvm"`            | Projection-valued measurement onto a computational basis state | see {doc}`circuit_simulation`               |
+| bitstring / `"pvm"`            | Projection-valued measurement onto a computational basis state | see {doc}`strong_simulation`                |
 
 For custom unitaries and circuit gates, use {doc}`custom_gates` — those workflows still use `GateLibrary` or Qiskit circuits directly.
 
@@ -107,9 +107,6 @@ def _trunc_summary(params: AnalogSimParams | StrongSimParams | WeakSimParams) ->
 Pick a preset — no other truncation arguments required:
 
 ```{code-cell} ipython3
----
-tags: [remove-output]
----
 # Default: balanced preset fills in all truncation settings
 analog_params = AnalogSimParams()
 
@@ -120,9 +117,6 @@ for name in ("fast", "balanced", "accurate", "exact"):
 Override **one** field; the rest stay from `"balanced"`:
 
 ```{code-cell} ipython3
----
-tags: [remove-output]
----
 balanced = AnalogSimParams(preset="balanced")
 tighter_krylov = AnalogSimParams(preset="balanced", krylov_tol=1e-8)
 ```
@@ -182,7 +176,7 @@ Pass the resulting object to {meth}`~mqt.yaqs.Simulator.run` together with a {cl
 
 ## `StrongSimParams`
 
-Used for noisy strong circuit simulation. Provide observables and optionally enable layer sampling (see {doc}`circuit_simulation`).
+Used for strong circuit simulation. Provide observables and optionally enable layer sampling (see {doc}`strong_simulation`).
 
 ### Two-qubit gate mode (`gate_mode`)
 
@@ -230,9 +224,6 @@ Used for noisy weak simulation. **`shots` is always required** and is not part o
 YAQS stores weak-simulation measurement histograms in `Result.counts` as a `dict[int, int]`. The integer key encodes the measured bitstring with **site 0 as the least-significant bit** (little-endian). This matches Qiskit’s default convention if you interpret Qiskit bitstrings (`c_{n-1}...c_0`) via `int(bitstring, 2)`.
 
 ```{code-cell} ipython3
----
-tags: [remove-output]
----
 weak_balanced = WeakSimParams(shots=1000)
 weak_exact = WeakSimParams(shots=1000, preset="exact")
 ```
@@ -251,5 +242,5 @@ SIMULATION_PRESETS
 
 - {doc}`quickstart` — minimal first simulation
 - {doc}`analog_simulation` — analog parameters in context
-- {doc}`circuit_simulation` — `StrongSimParams`, `gate_mode`, and layer sampling
+- {doc}`strong_simulation` — `StrongSimParams`, `gate_mode`, and layer sampling
 - {doc}`weak_circuit_simulation` — `WeakSimParams` and shot readout
